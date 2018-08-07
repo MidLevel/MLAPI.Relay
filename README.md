@@ -1,6 +1,8 @@
 
 ![](https://i.imgur.com/dJdKQYn.png)
 
+_Please note that the MLAPI.Relay was an experimental implementation of a relay. This was written in the span of a few days. Might not be stable (probably is), but should be fairly performant. It has no fancy features to support client meshing, and direct connections for peer to peer_
+
 ## Introduction
 _The documentation and the relay itself is currently WIP. This is subject to change._
 
