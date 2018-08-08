@@ -39,6 +39,7 @@ namespace MLAPI.Relay
 {
     public static class RelayTransport
     {
+        private static byte[] messageBuffer;
         private enum MessageType
         {
             StartServer,
@@ -57,6 +58,8 @@ namespace MLAPI.Relay
         public static bool Enabled { get; set; }
         public static string RelayAddress { get; set; }
         public static ushort RelayPort { get; set; }
+
+        private static bool hasNotifiedBufferSize = false;
 
         public static int Connect(int hostId, string serverAddress, int serverPort, int exceptionConnectionId, out byte error)
         {
@@ -203,37 +206,113 @@ namespace MLAPI.Relay
         public static bool Send(int hostId, int connectionId, int channelId, byte[] buffer, int size, out byte error)
         {
             if (!Enabled) return NetworkTransport.Send(hostId, connectionId, channelId, buffer, size, out error);
-            //ForwardOffset(buffer, 1, size); // Offsets just the bytes we're sending (isClient old)
+            byte[] sendBuffer;
+            if ((isClient && buffer.Length - size >= 1) || (!isClient && buffer.Length - size >= 3))
+            {
+                sendBuffer = buffer;
+            }
+            else
+            {
+                if (!hasNotifiedBufferSize)
+                {
+                    Debug.LogWarning("[MLAPI.Relay] The buffer provided does not have any extra space for relay headers. " +
+                                     "The relay transport will have to copy the data into a internal array which will remove the O(1) sending. " +
+                                     "Please ensure that the buffer you provide has at least 3 unused bytes to prevent this. This message will only be shown once.");
+                    hasNotifiedBufferSize = true;
+                }
+                if (messageBuffer == null || (isClient && messageBuffer.Length - size < 1) || (!isClient && messageBuffer.Length - size < 3))
+                {
+                    messageBuffer = new byte[size + 32]; //Increase buffer size with 32 bytes.
+                }
+                sendBuffer = messageBuffer;
+                Array.Copy(buffer, sendBuffer, size);
+            }
+
+            byte firstByte = 0;
+            byte secondByte = 0;
+            byte thirdByte = 0;
+
             ++size;
             if (!isClient)
             {
-                //ForwardOffset(buffer, 3, size); // Offsets just the bytes we're sending
                 size += 2;
+                
+                thirdByte = sendBuffer[size - 3];
+                secondByte = sendBuffer[size - 2];
 
-                buffer[size-3] = (byte)connectionId;
-                buffer[size-2] = (byte)(connectionId >> 8);
+                sendBuffer[size - 3] = (byte)connectionId;
+                sendBuffer[size - 2] = (byte)(connectionId >> 8);
             }
-            buffer[size-1] = (byte)MessageType.Data;
+            firstByte = sendBuffer[size - 1];
+            sendBuffer[size-1] = (byte)MessageType.Data;
 
-            return NetworkTransport.Send(hostId, relayConnectionId, channelId, buffer, size, out error);
+            bool result = NetworkTransport.Send(hostId, relayConnectionId, channelId, sendBuffer, size, out error);
+
+            if (!isClient)
+            {
+                sendBuffer[size - 3] = thirdByte;
+                sendBuffer[size - 2] = secondByte;
+            }
+            sendBuffer[size - 1] = firstByte;
+
+            return result;
         }
 
         public static bool QueueMessageForSending(int hostId, int connectionId, int channelId, byte[] buffer, int size, out byte error)
         {
             if (!Enabled) return NetworkTransport.QueueMessageForSending(hostId, connectionId, channelId, buffer, size, out error);
 
+            byte[] sendBuffer;
+            if ((isClient && buffer.Length - size >= 1) || (!isClient && buffer.Length - size >= 3))
+            {
+                sendBuffer = buffer;
+            }
+            else
+            {
+                if (!hasNotifiedBufferSize)
+                {
+                    Debug.LogWarning("[MLAPI.Relay] The buffer provided does not have any extra space for relay headers. " +
+                                     "The relay transport will have to copy the data into a internal array which will remove the O(1) sending. " +
+                                     "Please ensure that the buffer you provide has at least 3 unused bytes to prevent this. This message will only be shown once.");
+                    hasNotifiedBufferSize = true;
+                }
+                if (messageBuffer == null || (isClient && messageBuffer.Length - size < 1) || (!isClient && messageBuffer.Length - size < 3))
+                {
+                    messageBuffer = new byte[size + 32]; //Increase buffer size with 32 bytes.
+                }
+                sendBuffer = messageBuffer;
+                Array.Copy(buffer, sendBuffer, size);
+            }
+
+            byte firstByte = 0;
+            byte secondByte = 0;
+            byte thirdByte = 0;
+
             ++size;
             if (!isClient)
             {
-                //ForwardOffset(buffer, 3, size); // Offsets just the bytes we're sending
                 size += 2;
+                
+                thirdByte = sendBuffer[size - 3];
+                secondByte = sendBuffer[size - 2];
 
-                buffer[size - 3] = (byte)connectionId;
-                buffer[size - 2] = (byte)(connectionId >> 8);
+                sendBuffer[size - 3] = (byte)connectionId;
+                sendBuffer[size - 2] = (byte)(connectionId >> 8);
             }
-            buffer[size - 1] = (byte)MessageType.Data;
+            
+            firstByte = sendBuffer[size - 1];
+            sendBuffer[size-1] = (byte)MessageType.Data;
 
-            return NetworkTransport.QueueMessageForSending(hostId, relayConnectionId, channelId, buffer, size, out error);
+            bool result =  NetworkTransport.QueueMessageForSending(hostId, relayConnectionId, channelId, buffer, size, out error);
+
+            if (!isClient)
+            {
+                sendBuffer[size - 3] = thirdByte;
+                sendBuffer[size - 2] = secondByte;
+            }
+            sendBuffer[size - 1] = firstByte;
+
+            return result;
         }
 
         public static bool SendQueuedMessages(int hostId, int connectionId, out byte error)
@@ -315,18 +394,6 @@ namespace MLAPI.Relay
                     }
             }
             return @event;
-        }
-
-        public static void ReverseOffset(byte[] b, int offset, int dLen)
-        {
-            for(int i = offset; i < dLen; ++i)
-                b[i - offset] = b[i];
-        }
-
-        public static void ForwardOffset(byte[] b, int offset, int dLen)
-        {
-            for(int i = dLen; i>=0; --i)
-                b[i+offset] = b[i];
         }
 
         //TODO: Fix
