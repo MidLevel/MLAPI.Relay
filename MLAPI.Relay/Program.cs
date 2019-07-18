@@ -57,10 +57,11 @@ namespace Server.Core
                         SendDelay = 0
                     };
                     cConfig.AddChannel(QosType.ReliableFragmentedSequenced);
-                    cConfig.AddChannel(QosType.StateUpdate);
+                    cConfig.AddChannel(QosType.Reliable);
+                    cConfig.AddChannel(QosType.UnreliableSequenced);
                     cConfig.AddChannel(QosType.ReliableSequenced);
                     cConfig.AddChannel(QosType.ReliableSequenced);
-                    cConfig.AddChannel(QosType.StateUpdate);
+                    cConfig.AddChannel(QosType.UnreliableSequenced);
                     cConfig.AddChannel(QosType.Unreliable);
                     relayConfig = new RelayConfig()
                     {
