@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Ruffles" Version="2.1.0" />
   </ItemGroup>
 
   <ItemGroup>

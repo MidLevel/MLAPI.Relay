@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Ruffles.Configuration;
 using UnetServerDll;
 
 namespace Server.Core
@@ -7,41 +10,62 @@ namespace Server.Core
     public class RelayConfig
     {
         public static RelayConfig CurrentConfig;
-        public ConnectionConfig connectionConfig;
-        public GlobalConfig globalConfig;
-        public ushort maxConnections;
-        public ushort relayPort;
-        public ushort bufferSize;
-        public bool enableRuntimeMetaLogging = true;
-        public List<string> channels = new List<string>();
-        public int bandwidthGracePrediodLength = 60;
-        public int gracePeriodBandwidthLimit = 4000;
-        public int bandwidthLimit = 2000;
+
+        public TransportType Transport = TransportType.Ruffles;
+
+        public ConnectionConfig UnetConnectionConfig;
+        public GlobalConfig UnetGlobalConfig;
+
+        [JsonConverter(typeof(StringEnumConverter))]
+        public SocketConfig RufflesSocketConfig;
+
+        public ushort MaxConnections = 100;
+        public ushort RelayPort = 8888;
+        public ushort BufferSize = 1024 * 8;
+        public bool EnableRuntimeMetaLogging = true;
+        public List<string> Channels = new List<string>();
+        public int BandwidthGracePrediodLength = 60;
+        public int GracePeriodBandwidthLimit = 4000;
+        public int BandwidthLimit = 2000;
 
         internal void SetChannels()
         {
-            connectionConfig.Channels.Clear();
-            foreach (var channel in channels)
-                connectionConfig.AddChannel(StringToQosType(channel));
+            UnetConnectionConfig.Channels.Clear();
+
+            foreach (string channel in Channels)
+            {
+                UnetConnectionConfig.AddChannel(StringToQosType(channel));
+            }
         }
 
         public void UnSetChannels()
         {
-            foreach (var channel in connectionConfig.Channels)
-                channels.Add(channel.QOS.ToString());
-            connectionConfig.Channels.Clear();
+            foreach (ChannelQOS channel in UnetConnectionConfig.Channels)
+            {
+                Channels.Add(channel.QOS.ToString());
+            }
+
+            UnetConnectionConfig.Channels.Clear();
         }
 
 
         private static readonly QosType[] fields = (QosType[])Enum.GetValues(typeof(QosType));
+
         private QosType StringToQosType(string s)
         {
-            foreach (var field in fields)
+            foreach (QosType field in fields)
             {
                 if (s == field.ToString())
                     return field;
             }
+
             throw new InvalidConfigException($"Supplied QosType \"{s}\" is invalid");
         }
+    }
+
+    public enum TransportType
+    {
+        Ruffles,
+        UNET
     }
 }
