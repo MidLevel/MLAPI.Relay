@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Server.Core
+﻿namespace MLAPI.Relay
 {
     public enum MessageType
     {
