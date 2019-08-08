@@ -1,7 +1,12 @@
-﻿namespace MLAPI.Relay
+﻿using MLAPI.Relay.Transports;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+
+namespace MLAPI.Relay
 {
     public class RelayConfig
     {
+        [JsonConverter(typeof(StringEnumConverter))]
         public TransportType Transport = TransportType.Ruffles;
         public object TransportConfig;
         public ushort BufferSize = 1024 * 8;
