@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
 using Ruffles.Channeling;
 using Ruffles.Configuration;
 using Ruffles.Connections;
@@ -10,7 +11,7 @@ using Ruffles.Core;
 
 namespace MLAPI.Relay.Transports
 {
-    public class RufflesTransport : ITransport
+    public class RufflesTransport : Transport
     {
         private RuffleSocket socket;
 
@@ -19,12 +20,12 @@ namespace MLAPI.Relay.Transports
         private NetworkEvent? pendingRecycleEvent = null;
         private Connection pendingRecycleConnection = null;
 
-        public void Disconnect(ulong connectionId)
+        public override void Disconnect(ulong connectionId)
         {
             socket.Disconnect(connectionId, true);
         }
 
-        public object GetConfig()
+        public override object GetConfig()
         {
             return new RufflesConfig()
             {
@@ -34,7 +35,7 @@ namespace MLAPI.Relay.Transports
             };
         }
 
-        public IPEndPoint GetEndPoint(ulong connectionId)
+        public override IPEndPoint GetEndPoint(ulong connectionId)
         {
             if (endpoints.ContainsKey(connectionId))
             {
@@ -46,7 +47,7 @@ namespace MLAPI.Relay.Transports
         }
 
 
-        public NetEventType Poll(out ulong connectionId, out byte channelId, out ArraySegment<byte> payload)
+        public override NetEventType Poll(out ulong connectionId, out byte channelId, out ArraySegment<byte> payload)
         {
             if (pendingRecycleEvent != null)
             {
@@ -110,14 +111,18 @@ namespace MLAPI.Relay.Transports
             }
         }
 
-        public void Send(ArraySegment<byte> payload, byte channelId, ulong connectionId)
+        public override void Send(ArraySegment<byte> payload, byte channelId, ulong connectionId)
         {
             socket.Send(payload, connectionId, channelId, false);
         }
 
-        public void Start(object config)
+        public override void Start(object config)
         {
-            RufflesConfig rufflesConfig = (RufflesConfig)config;
+            RufflesConfig rufflesConfig = null;
+
+            if (config is RufflesConfig) rufflesConfig = (RufflesConfig)config;
+            else if (config is JObject) rufflesConfig = ((JObject)config).ToObject<RufflesConfig>();
+
             rufflesConfig.SocketConfig.DualListenPort = Program.Config.ListenPort;
 
             ChannelType[] channelTypes = rufflesConfig.SocketConfig.ChannelTypes;

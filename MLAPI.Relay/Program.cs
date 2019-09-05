@@ -11,7 +11,7 @@ namespace MLAPI.Relay
 {
     public static class Program
     {
-        public static ITransport Transport;
+        public static Transport Transport;
         public static readonly List<Room> Rooms = new List<Room>();
         public static readonly Dictionary<EndPoint, Room> ServerAddressToRoom = new Dictionary<EndPoint, Room>();
         public static byte DEFAULT_CHANNEL_BYTE = 0;
@@ -149,7 +149,11 @@ namespace MLAPI.Relay
 
                 if (Config != null)
                 {
-                    File.WriteAllText(configPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
+                    object config = Transport.BeforeSerializeConfig(Config);
+
+                    string serializedJson = JsonConvert.SerializeObject(config, Formatting.Indented);
+
+                    File.WriteAllText(configPath, Transport.ProcessSerializedJson(serializedJson));
                 }
                 else
                 {
@@ -161,28 +165,45 @@ namespace MLAPI.Relay
                 try
                 {
                     Config = JsonConvert.DeserializeObject<RelayConfig>(File.ReadAllText(configPath));
+
+                    switch (Config.Transport)
+                    {
+                        case TransportType.Ruffles:
+                            Transport = new RufflesTransport();
+                            break;
+                        case TransportType.UNET:
+                            Transport = new UnetTransport();
+                            break;
+                    }
+
+                    // Post deserialization job
+                    Config = (RelayConfig)Transport.AfterDeserializedConfig(Config);
                 }
-                catch (Exception ex)
+                catch (Exception e)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("[ERROR] Error parsing config file: " + ex.Message);
+                    Console.WriteLine("[ERROR] Error parsing config file: " + e);
                     Console.Read();
                     Environment.Exit(1);
                     return;
                 }
             }
 
+            Program.MESSAGE_BUFFER = new byte[Config.BufferSize];
+
             try
             {
+                Console.WriteLine("[INFO] Starting server...");
                 Transport.Start(Config.TransportConfig);
+                Console.WriteLine("[INFO] Server started!");
             }
             catch (DllNotFoundException e)
             {
-                Console.WriteLine("[FATAL] Could not locate one or more shared libraries! Message: \n" + e.Message);
+                Console.WriteLine("[FATAL] Could not locate one or more shared libraries! Message: \n" + e);
             }
             catch (Exception e)
             {
-                Console.WriteLine("[FATAL] An unexpected error occurred! Message: \n" + e.Message);
+                Console.WriteLine("[FATAL] An unexpected error occurred! Message: \n" + e);
             }
 
             while (true)
@@ -213,7 +234,11 @@ namespace MLAPI.Relay
                         {
                             case MessageType.StartServer:
                                 {
-                                    // TODO: Check if they are already connected or perhaps are already hosting, if so return
+                                    // Check if they are already connected or perhaps are already hosting, if so return
+                                    if (HasPeer(connectionId))
+                                    {
+                                        return;
+                                    }
 
                                     Client client;
 
@@ -232,33 +257,42 @@ namespace MLAPI.Relay
                                     // Resolve the endpoint
                                     IPEndPoint endpoint = Transport.GetEndPoint(connectionId);
 
-                                    // Make address IPv6
-                                    endpoint = new IPEndPoint(endpoint.Address.MapToIPv6(), endpoint.Port);
+                                    if (endpoint != null)
+                                    {
+                                        // Make address IPv6
+                                        endpoint = new IPEndPoint(endpoint.Address.MapToIPv6(), endpoint.Port);
 
-                                    if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Server started from " + endpoint);
+                                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Server started from " + endpoint);
 
-                                    ServerAddressToRoom.Add(endpoint, room);
+                                        ServerAddressToRoom.Add(endpoint, room);
+                                    }
                                 }
                                 break;
                             case MessageType.ConnectToServer:
                                 {
-                                    // TODO: Check if they are already connected or perhaps are already hosting; if so, return
-                                    // TODO: Check size
+                                    // Check if they are already connected or perhaps are already hosting, if so return
+                                    if (HasPeer(connectionId))
+                                    {
+                                        return;
+                                    }
 
+                                    if (payload.Count < 1 + 2 + 16)
+                                    {
+                                        // Invalid size
+                                        return;
+                                    }
                                                                         // 1 for messageType, 2 for port, 16 for address
                                     int addressOffset = payload.Count - (1 + 2 + 16);
                                                                       // 1 for messageType, 2 for port
                                     int portOffset = payload.Count - (1 + 2);
 
-                                    for (int i = 0; i < 16; i++)
-                                    {
-                                        // Copy the address
-                                        ADDRESS_BYTE_ARRAY[i] = payload.Array[payload.Offset + addressOffset + i];
-                                    }
+                                    // Copy the address
+                                    for (int i = 0; i < 16; i++) ADDRESS_BYTE_ARRAY[i] = payload.Array[payload.Offset + addressOffset + i];
 
                                     // Read port
                                     ushort port = (ushort)(((ushort)payload.Array[payload.Offset + portOffset]) |
                                                             ((ushort)payload.Array[payload.Offset + portOffset + 1] << 8));
+
 
                                     // Parse address
                                     IPAddress address = new IPAddress(ADDRESS_BYTE_ARRAY);
@@ -308,6 +342,7 @@ namespace MLAPI.Relay
                                                                     ((ulong)payload.Array[payload.Offset + payload.Count - 4] << 40) |
                                                                     ((ulong)payload.Array[payload.Offset + payload.Count - 3] << 48) |
                                                                     ((ulong)payload.Array[payload.Offset + payload.Count - 2] << 56));
+
 
                                                 // Safety check. Make sure who they want to send to ACTUALLY belongs to their room
                                                 if (room.HasPeer(destination, out isServer) && !isServer)
@@ -426,6 +461,19 @@ namespace MLAPI.Relay
                     }
                     break;
             }
+        }
+
+        private static bool HasPeer(ulong connectionId)
+        {
+            foreach (Room room in Rooms)
+            {
+                if (room.HasPeer(connectionId, out _))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 

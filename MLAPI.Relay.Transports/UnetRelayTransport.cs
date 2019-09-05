@@ -32,9 +32,12 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.Connect(hostId, serverAddress, serverPort, exceptionConnectionId, out error);
 
             isClient = true;
+
             UnetRelayTransport.address = serverAddress;
             UnetRelayTransport.port = (ushort)serverPort;
+
             relayConnectionId = NetworkTransport.Connect(hostId, RelayAddress, RelayPort, exceptionConnectionId, out error); // Requests connection
+
             return relayConnectionId;
         }
 
@@ -43,9 +46,12 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.ConnectWithSimulator(hostId, serverAddress, serverPort, exceptionConnectionId, out error, conf);
 
             isClient = true;
+
             UnetRelayTransport.address = serverAddress;
             UnetRelayTransport.port = (ushort)serverPort;
+
             relayConnectionId = NetworkTransport.ConnectWithSimulator(hostId, RelayAddress, RelayPort, exceptionConnectionId, out error, conf); // Requests connection
+
             return relayConnectionId;
         }
 
@@ -54,9 +60,12 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.ConnectEndPoint(hostId, endPoint, exceptionConnectionId, out error);
 
             isClient = true;
+
             UnetRelayTransport.address = ((IPEndPoint)endPoint).Address.ToString();
             UnetRelayTransport.port = (ushort)((IPEndPoint)endPoint).Port;
+
             relayConnectionId = NetworkTransport.Connect(hostId, RelayAddress, RelayPort, exceptionConnectionId, out error); // Requests connection
+
             return relayConnectionId;
         }
 
@@ -71,8 +80,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHost(topology);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
         public static int AddHost(HostTopology topology, int port, bool createServer)
@@ -84,8 +96,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHost(topology, port);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
         public static int AddHost(HostTopology topology, int port, string ip, bool createServer)
@@ -97,8 +112,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHost(topology, port, ip);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -111,8 +129,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHostWithSimulator(topology, minTimeout, maxTimeout, port, ip);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -125,8 +146,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHostWithSimulator(topology, minTimeout, maxTimeout);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -135,9 +159,13 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.AddHostWithSimulator(topology, minTimeout, maxTimeout, port);
 
             isClient = !createServer;
+
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddHostWithSimulator(topology, minTimeout, maxTimeout, port);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -150,8 +178,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddWebsocketHost(topology, port);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -164,8 +195,11 @@ namespace MLAPI.Relay.Transports
             defaultChannelId = topology.DefaultConfig.AddChannel(QosType.ReliableSequenced);
 
             SetChannelsFromTopology(topology);
+
             int ret = NetworkTransport.AddWebsocketHost(topology, port, ip);
+
             if (createServer) relayConnectionId = NetworkTransport.Connect(ret, RelayAddress, RelayPort, 0, out byte b);
+
             return ret;
         }
 
@@ -177,20 +211,26 @@ namespace MLAPI.Relay.Transports
             if (!isClient)
             {
                 for (byte i = 0; i < sizeof(ulong); i++) disconnectBuffer[i] = ((byte)((ulong)connectionId >> (i * 8)));
+
                 return NetworkTransport.Send(hostId, relayConnectionId, defaultChannelId, disconnectBuffer, 9, out error);
             }
-            else return NetworkTransport.Disconnect(hostId, connectionId, out error);
+
+            return NetworkTransport.Disconnect(hostId, connectionId, out error);
         }
 
         public static bool Send(int hostId, int connectionId, int channelId, byte[] buffer, int size, out byte error)
         {
             if (!Enabled) return NetworkTransport.Send(hostId, connectionId, channelId, buffer, size, out error);
+
             ++size;
+
             if (!isClient)
             {
                 size += 8;
+
                 int connectionIdOffset = size - 9;
-                for (byte i = 0; i < sizeof(ulong); i++) buffer[connectionIdOffset + i] = ((byte)(connectionId >> (i * 8)));
+
+                for (byte i = 0; i < sizeof(ulong); i++) buffer[connectionIdOffset + i] = ((byte)((ulong)connectionId >> (i * 8)));
             }
 
             buffer[size - 1] = (byte)MessageType.Data;
@@ -203,15 +243,16 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.QueueMessageForSending(hostId, connectionId, channelId, buffer, size, out error);
 
             ++size;
+
             if (!isClient)
             {
                 size += 8;
 
                 int connectionIdOffset = size - 9;
 
-                for (byte i = 0; i < sizeof(ulong); i++) buffer[connectionIdOffset + i] = ((byte)(connectionId >> (i * 8)));
-
+                for (byte i = 0; i < sizeof(ulong); i++) buffer[connectionIdOffset + i] = ((byte)((ulong)connectionId >> (i * 8)));
             }
+
             buffer[size - 1] = (byte)MessageType.Data;
 
             return NetworkTransport.QueueMessageForSending(hostId, relayConnectionId, channelId, buffer, size, out error);
@@ -229,6 +270,7 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.ReceiveFromHost(hostId, out connectionId, out channelId, buffer, bufferSize, out receivedSize, out error);
 
             NetworkEventType @event = NetworkTransport.ReceiveFromHost(hostId, out connectionId, out channelId, buffer, bufferSize, out receivedSize, out error);
+
             return BaseReceive(@event, hostId, ref connectionId, ref channelId, buffer, bufferSize, ref receivedSize, ref error);
         }
 
@@ -237,6 +279,7 @@ namespace MLAPI.Relay.Transports
             if (!Enabled) return NetworkTransport.Receive(out hostId, out connectionId, out channelId, buffer, bufferSize, out receivedSize, out error);
 
             NetworkEventType @event = NetworkTransport.Receive(out hostId, out connectionId, out channelId, buffer, bufferSize, out receivedSize, out error);
+
             return BaseReceive(@event, hostId, ref connectionId, ref channelId, buffer, bufferSize, ref receivedSize, ref error);
         }
 
@@ -245,64 +288,67 @@ namespace MLAPI.Relay.Transports
             switch (@event)
             {
                 case NetworkEventType.DataEvent:
-                    MessageType messageType = (MessageType)buffer[receivedSize - 1];
-                    switch (messageType)
                     {
-                        case MessageType.ConnectToServer: // Connection approved
-                            {
-                                if (!isClient)
+                        MessageType messageType = (MessageType)buffer[receivedSize - 1];
+
+                        switch (messageType)
+                        {
+                            case MessageType.ConnectToServer: // Connection approved
                                 {
-                                    ulong _connectionId = (((ulong)buffer[receivedSize - 9]) |
-                                                            ((ulong)buffer[receivedSize - 8] << 8) |
-                                                            ((ulong)buffer[receivedSize - 7] << 16) |
-                                                            ((ulong)buffer[receivedSize - 6] << 24) |
-                                                            ((ulong)buffer[receivedSize - 5] << 32) |
-                                                            ((ulong)buffer[receivedSize - 4] << 40) |
-                                                            ((ulong)buffer[receivedSize - 3] << 48) |
-                                                            ((ulong)buffer[receivedSize - 2] << 56));
+                                    if (!isClient)
+                                    {
+                                        ulong _connectionId = (((ulong)buffer[receivedSize - 9]) |
+                                                                ((ulong)buffer[receivedSize - 8] << 8) |
+                                                                ((ulong)buffer[receivedSize - 7] << 16) |
+                                                                ((ulong)buffer[receivedSize - 6] << 24) |
+                                                                ((ulong)buffer[receivedSize - 5] << 32) |
+                                                                ((ulong)buffer[receivedSize - 4] << 40) |
+                                                                ((ulong)buffer[receivedSize - 3] << 48) |
+                                                                ((ulong)buffer[receivedSize - 2] << 56));
+
+                                        connectionId = (int)_connectionId;
+                                    }
+
+                                    return NetworkEventType.ConnectEvent;
+                                }
+                            case MessageType.Data:
+                                {
+                                    // Implicitly remove header
+                                    if (isClient) --receivedSize;
+                                    else
+                                    {
+                                        receivedSize -= 9;
+
+                                        ulong _connectionId = (((ulong)buffer[receivedSize]) |
+                                                                ((ulong)buffer[receivedSize + 1] << 8) |
+                                                                ((ulong)buffer[receivedSize + 2] << 16) |
+                                                                ((ulong)buffer[receivedSize + 3] << 24) |
+                                                                ((ulong)buffer[receivedSize + 4] << 32) |
+                                                                ((ulong)buffer[receivedSize + 5] << 40) |
+                                                                ((ulong)buffer[receivedSize + 6] << 48) |
+                                                                ((ulong)buffer[receivedSize + 7] << 56));
+
+                                        connectionId = (int)_connectionId;
+                                    }
+
+                                    return NetworkEventType.DataEvent;
+                                }
+                            case MessageType.ClientDisconnect:
+                                {
+                                    ulong _connectionId = (((ulong)buffer[0]) |
+                                                            ((ulong)buffer[1] << 8) |
+                                                            ((ulong)buffer[2] << 16) |
+                                                            ((ulong)buffer[3] << 24) |
+                                                            ((ulong)buffer[4] << 32) |
+                                                            ((ulong)buffer[5] << 40) |
+                                                            ((ulong)buffer[6] << 48) |
+                                                            ((ulong)buffer[7] << 56));
 
                                     connectionId = (int)_connectionId;
+
+                                    return NetworkEventType.DisconnectEvent;
                                 }
-
-                                return NetworkEventType.ConnectEvent;
-                            }
-                        case MessageType.Data:
-                            {
-                                // Implicitly remove header
-                                if (isClient) --receivedSize;
-                                else
-                                {
-                                    receivedSize -= 9;
-
-                                    ulong _connectionId = (((ulong)buffer[receivedSize]) |
-                                                            ((ulong)buffer[receivedSize + 1] << 8) |
-                                                            ((ulong)buffer[receivedSize + 2] << 16) |
-                                                            ((ulong)buffer[receivedSize + 3] << 24) |
-                                                            ((ulong)buffer[receivedSize + 4] << 32) |
-                                                            ((ulong)buffer[receivedSize + 5] << 40) |
-                                                            ((ulong)buffer[receivedSize + 6] << 48) |
-                                                            ((ulong)buffer[receivedSize + 7] << 56));
-
-                                    connectionId = (int)_connectionId;
-                                }
-
-                                return NetworkEventType.DataEvent;
-                            }
-                        case MessageType.ClientDisconnect:
-                            {
-                                ulong _connectionId = (((ulong)buffer[0]) |
-                                                        ((ulong)buffer[1] << 8) |
-                                                        ((ulong)buffer[2] << 16) |
-                                                        ((ulong)buffer[3] << 24) |
-                                                        ((ulong)buffer[4] << 32) |
-                                                        ((ulong)buffer[5] << 40) |
-                                                        ((ulong)buffer[6] << 48) |
-                                                        ((ulong)buffer[7] << 56));
-
-                                connectionId = (int)_connectionId;
-
-                                return NetworkEventType.DisconnectEvent;
-                            }
+                        }
                     }
                     break;
                 case NetworkEventType.ConnectEvent:
@@ -311,13 +357,26 @@ namespace MLAPI.Relay.Transports
                         {
                             //Connect via relay
 
-                            byte[] addressBytes = IPAddress.Parse(address).MapToIPv6().GetAddressBytes();
+                            byte[] ipv6AddressBuffer;
+                            IPAddress ipAddress = IPAddress.Parse(address);
+
+                            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                            {
+                                ipv6AddressBuffer = ipAddress.GetAddressBytes();
+                            }
+                            else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            {
+                                byte[] ipv4Address = ipAddress.GetAddressBytes();
+                                ipv6AddressBuffer = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, ipv4Address[0], ipv4Address[1], ipv4Address[2], ipv4Address[3] };
+                            }
+                            else
+                            {
+                                // TODO: Throw wrong type
+                                ipv6AddressBuffer = null;
+                            }
 
                             // TODO: Throw if address is not 16 bytes. It should always be
-                            for (int i = 0; i < addressBytes.Length; i++)
-                            {
-                                buffer[i] = addressBytes[i];
-                            }
+                            for (int i = 0; i < ipv6AddressBuffer.Length; i++) buffer[i] = ipv6AddressBuffer[i];
 
                             for (byte i = 0; i < sizeof(ushort); i++) buffer[16 + i] = ((byte)(port >> (i * 8)));
 
@@ -329,6 +388,7 @@ namespace MLAPI.Relay.Transports
                         {
                             //Register us as a server
                             buffer[0] = (byte)MessageType.StartServer;
+
                             NetworkTransport.Send(hostId, connectionId, defaultChannelId, buffer, 1, out error);
                         }
                         return NetworkEventType.Nothing; // Connect event is ignored
@@ -336,6 +396,7 @@ namespace MLAPI.Relay.Transports
                 case NetworkEventType.DisconnectEvent:
                     {
                         if ((NetworkError)error == NetworkError.CRCMismatch) Debug.LogError("[MLAPI.Relay] The MLAPI Relay detected a CRC mismatch. This could be due to the maxClients or other connectionConfig settings not being the same");
+
                         return NetworkEventType.DisconnectEvent;
                     }
             }
