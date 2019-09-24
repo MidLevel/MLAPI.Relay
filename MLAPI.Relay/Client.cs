@@ -6,7 +6,7 @@ namespace MLAPI.Relay
     {
         public bool IsServer { get; set; }
         public ulong ConnectionId { get; set; }
-        public bool IsInBandwidthGracePeriod => (DateTime.UtcNow - ConnectTime).TotalSeconds >= Program.Config.BandwidthGracePrediodLength;
+        public bool IsInBandwidthGracePeriod => (DateTime.UtcNow - ConnectTime).TotalSeconds >= Program.Config.BandwidthGracePeriodLength;
         public DateTime ConnectTime { get; set; }
         public ulong OutgoingBytes { get; set; }
     }
