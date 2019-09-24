@@ -57,13 +57,13 @@ Relay config contains many different fields:
 
 See below for a basic setup guide for building and deploying the MLAPI relay to a Amazon EC2 instance (Free tier - Windows server 2012)
 
-*Clone the repository
-*Open the MLAPI.Relay.sln file inside an IDE (Visual Studio 2019)
-*Build the release, following the onscreen prompts for the required config
-*Copy the contents of the build directory i.e. bin\release onto the Amazon EC2 instance
-*Install dotnet-sdk-2.2.402-win-x64.exe on the server - https://dotnet.microsoft.com/download/dotnet-core/2.2
-*Run "dotnet MLAPI.Relay.dll" in the Release\netcoreapp2.0 folder to start the server
-*Ensure that firewall rules for inbound and outbound traffic have been setup to allow connections for your desired port (default 8888)
-*Ensure the EC2 instance has the correct security settings to allow connections from any IPs you wish to connect to the server
+* Clone the repository
+* Open the MLAPI.Relay.sln file inside an IDE (Visual Studio 2019)
+* Build the release, following the onscreen prompts for the required config
+* Copy the contents of the build directory i.e. bin\release onto the Amazon EC2 instance
+* Install dotnet-sdk-2.2.402-win-x64.exe on the server - https://dotnet.microsoft.com/download/dotnet-core/2.2
+* Run "dotnet MLAPI.Relay.dll" in the Release\netcoreapp2.0 folder to start the server
+* Ensure that firewall rules for inbound and outbound traffic have been setup to allow connections for your desired port (default 8888)
+* Ensure the EC2 instance has the correct security settings to allow connections from any IPs you wish to connect to the server
 
 Now you should be ready to connect to the server from unity. This can be achieved with MLAPI by creating an empty game object with the NetworkingManager script (adding the UNET transport) and configuring the settings to match the config.json settings used in the relay. The connect address should be your normal player hosted server address, the relay address should be the address to the relay (has to be set on both client and server). Then enable relaying and use NetworkingManager.Singleton.StartHost() on the Server and NetworkingManager.Singleton.StartClient() on the client and they should connect to the relay.
