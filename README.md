@@ -61,7 +61,7 @@ See below for a basic setup guide for building and deploying the MLAPI relay to 
 * Open the MLAPI.Relay.sln file inside an IDE (Visual Studio 2019)
 * Build the release, following the onscreen prompts for the required config
 * Copy the contents of the build directory i.e. bin\release onto the Amazon EC2 instance
-* Install dotnet-sdk-2.2.402-win-x64.exe on the server - https://dotnet.microsoft.com/download/dotnet-core/2.2
+* Install dotnet-sdk-2.2.402-win-x64.exe on the server - https://dotnet.microsoft.com/download/dotnet-core/2.2 (It's also possible to use Mono rather than dotnet)
 * Run "dotnet MLAPI.Relay.dll" in the Release\netcoreapp2.0 folder to start the server
 * Ensure that firewall rules for inbound and outbound traffic have been setup to allow connections for your desired port (default 8888)
 * Ensure the EC2 instance has the correct security settings to allow connections from any IPs you wish to connect to the server
