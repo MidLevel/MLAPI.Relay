@@ -96,6 +96,11 @@ namespace MLAPI.Relay.Transports
             if (config is UnetConfig) unetConfig = (UnetConfig)config;
             else if (config is JObject) unetConfig = ((JObject)config).ToObject<UnetConfig>();
 
+            for (int i = 0; i < unetConfig.Channels.Count; i++)
+            {
+                unetConfig.ConnectionConfig.AddChannel(unetConfig.Channels[i]);
+            }
+
             Program.DEFAULT_CHANNEL_BYTE = unetConfig.ConnectionConfig.AddChannel(QosType.ReliableSequenced);
 
             unetManager = new NetLibraryManager(unetConfig.GlobalConfig);
