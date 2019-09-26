@@ -48,6 +48,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="libUNETServerDLL.dylib">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="libUNETServerDLL.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="UNETServerDLL.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
