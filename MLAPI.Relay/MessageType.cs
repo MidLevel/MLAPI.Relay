@@ -5,6 +5,7 @@
         StartServer,
         ConnectToServer,
         Data,
-        ClientDisconnect
+        ClientDisconnect,
+        AddressReport
     }
 }

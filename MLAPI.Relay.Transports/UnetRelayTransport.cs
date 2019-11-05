@@ -13,7 +13,8 @@ namespace MLAPI.Relay.Transports
             StartServer,
             ConnectToServer,
             Data,
-            ClientDisconnect
+            ClientDisconnect,
+            AddressReport
         }
 
         private static byte defaultChannelId;
@@ -26,6 +27,8 @@ namespace MLAPI.Relay.Transports
         public static bool Enabled { get; set; } = true;
         public static string RelayAddress { get; set; } = "127.0.0.1";
         public static ushort RelayPort { get; set; } = 8888;
+
+        public static event Action<IPEndPoint> OnRemoteEndpointReported;
 
         public static int Connect(int hostId, string serverAddress, int serverPort, int exceptionConnectionId, out byte error)
         {
@@ -293,6 +296,20 @@ namespace MLAPI.Relay.Transports
 
                         switch (messageType)
                         {
+                            case MessageType.AddressReport:
+                                {
+                                    byte[] addressBytes = new byte[16];
+
+                                    for (int i = 0; i < addressBytes.Length; i++) addressBytes[i] = buffer[i];
+
+                                    ushort remotePort = (ushort)(((ushort)buffer[17]) |
+                                                            ((ushort)buffer[18] << 8));
+
+                                    IPEndPoint remoteEndPoint = new IPEndPoint(new IPAddress(addressBytes), remotePort);
+
+                                    OnRemoteEndpointReported(remoteEndPoint);
+                                    break;
+                                }
                             case MessageType.ConnectToServer: // Connection approved
                                 {
                                     if (!isClient)

@@ -266,6 +266,37 @@ namespace MLAPI.Relay
 
                                         ServerAddressToRoom.Add(endpoint, room);
                                     }
+
+                                    byte[] ipv6AddressBuffer;
+                                    IPAddress ipAddress = endpoint.Address;
+
+                                    if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                                    {
+                                        ipv6AddressBuffer = ipAddress.GetAddressBytes();
+                                    }
+                                    else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                                    {
+                                        byte[] ipv4Address = ipAddress.GetAddressBytes();
+                                        ipv6AddressBuffer = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, ipv4Address[0], ipv4Address[1], ipv4Address[2], ipv4Address[3] };
+                                    }
+                                    else
+                                    {
+                                        // TODO: Throw wrong type
+                                        ipv6AddressBuffer = null;
+                                    }
+
+                                    // TODO: Throw if address is not 16 bytes. It should always be
+                                    // Write the address
+                                    for (int i = 0; i < ipv6AddressBuffer.Length; i++) MESSAGE_BUFFER[i] = ipv6AddressBuffer[i];
+
+                                    // Write the port
+                                    for (byte i = 0; i < sizeof(ushort); i++) MESSAGE_BUFFER[16 + i] = ((byte)(endpoint.Port >> (i * 8)));
+
+                                    // Write the message type
+                                    MESSAGE_BUFFER[18] = (byte)MessageType.AddressReport;
+
+                                    // Send connect to client
+                                    Transport.Send(new ArraySegment<byte>(MESSAGE_BUFFER, 0, 19), DEFAULT_CHANNEL_BYTE, connectionId);
                                 }
                                 break;
                             case MessageType.ConnectToServer:
