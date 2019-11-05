@@ -235,7 +235,7 @@ namespace MLAPI.Relay
                             case MessageType.StartServer:
                                 {
                                     // Check if they are already connected or perhaps are already hosting, if so return
-                                    if (HasPeer(connectionId))
+                                    if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
                                     {
                                         return;
                                     }
@@ -271,7 +271,7 @@ namespace MLAPI.Relay
                             case MessageType.ConnectToServer:
                                 {
                                     // Check if they are already connected or perhaps are already hosting, if so return
-                                    if (HasPeer(connectionId))
+                                    if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
                                     {
                                         return;
                                     }
