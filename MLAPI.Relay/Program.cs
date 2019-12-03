@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Threading;
 using UnetServerDll;
 
 namespace MLAPI.Relay
@@ -489,6 +490,12 @@ namespace MLAPI.Relay
                                 break;
                             }
                         }
+                    }
+                    break;
+                case NetEventType.Nothing:
+                    {
+                        // If the underlying transport doesnt report anything. We can just suspend the CPU
+                        Thread.Sleep((int)Config.DeadQueueSleepTime);
                     }
                     break;
             }
