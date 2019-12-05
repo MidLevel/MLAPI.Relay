@@ -17,7 +17,7 @@ namespace MLAPI.Relay
         public bool AllowTemporaryAlloc = true;
         public int MaxTemporaryAlloc = 1024 * 64;
         public ushort ListenPort = 8888;
-        public uint DeadQueueSleepTime = 10;
+        public uint TicksPerSecond = 64;
     }
 
     public enum TransportType

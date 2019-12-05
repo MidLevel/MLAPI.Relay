@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Reflection;
@@ -207,11 +208,23 @@ namespace MLAPI.Relay
                 Console.WriteLine("[FATAL] An unexpected error occurred! Message: \n" + e);
             }
 
+            Stopwatch watch = new Stopwatch();
+
             while (true)
             {
                 try
                 {
+                    watch.Restart();
+
                     RunLoop();
+
+                    int timeBetweenTicks = (int)((1f / Config.TicksPerSecond) * 1000f);
+                    int timeToSleep = timeBetweenTicks - (int)watch.ElapsedMilliseconds;
+
+                    if (timeToSleep > 0)
+                    {
+                        Thread.Sleep(timeToSleep);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -222,283 +235,282 @@ namespace MLAPI.Relay
 
         private static void RunLoop()
         {
-            NetEventType eventType = Transport.Poll(out ulong connectionId, out byte channelId, out ArraySegment<byte> payload);
-
-            switch (@eventType)
+            NetEventType eventType;
+            do
             {
-                case NetEventType.Data:
-                    {
-                        // Last byte is the messageType
-                        MessageType messageType = (MessageType)payload.Array[payload.Offset + payload.Count - 1];
+                eventType = Transport.Poll(out ulong connectionId, out byte channelId, out ArraySegment<byte> payload);
 
-                        switch (messageType)
+                switch (@eventType)
+                {
+                    case NetEventType.Data:
                         {
-                            case MessageType.StartServer:
-                                {
-                                    // Check if they are already connected or perhaps are already hosting, if so return
-                                    if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
+                            // Last byte is the messageType
+                            MessageType messageType = (MessageType)payload.Array[payload.Offset + payload.Count - 1];
+
+                            switch (messageType)
+                            {
+                                case MessageType.StartServer:
                                     {
-                                        return;
-                                    }
+                                        // Check if they are already connected or perhaps are already hosting, if so return
+                                        if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
+                                        {
+                                            return;
+                                        }
 
-                                    Client client;
+                                        Client client;
 
-                                    // Create the room
-                                    Room room = new Room(client = new Client()
-                                    {
-                                        ConnectionId = connectionId,
-                                        IsServer = true,
-                                        OutgoingBytes = 0,
-                                        ConnectTime = DateTime.UtcNow
-                                    });
-
-                                    // Add the room
-                                    Rooms.Add(room);
-
-                                    // Resolve the endpoint
-                                    IPEndPoint endpoint = Transport.GetEndPoint(connectionId);
-
-                                    if (endpoint != null)
-                                    {
-                                        // Make address IPv6
-                                        endpoint = new IPEndPoint(endpoint.Address.MapToIPv6(), endpoint.Port);
-
-                                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Server started from " + endpoint);
-
-                                        ServerAddressToRoom.Add(endpoint, room);
-                                    }
-
-                                    byte[] ipv6AddressBuffer;
-                                    IPAddress ipAddress = endpoint.Address;
-
-                                    if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
-                                    {
-                                        ipv6AddressBuffer = ipAddress.GetAddressBytes();
-                                    }
-                                    else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                                    {
-                                        byte[] ipv4Address = ipAddress.GetAddressBytes();
-                                        ipv6AddressBuffer = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, ipv4Address[0], ipv4Address[1], ipv4Address[2], ipv4Address[3] };
-                                    }
-                                    else
-                                    {
-                                        // TODO: Throw wrong type
-                                        ipv6AddressBuffer = null;
-                                    }
-
-                                    // TODO: Throw if address is not 16 bytes. It should always be
-                                    // Write the address
-                                    for (int i = 0; i < ipv6AddressBuffer.Length; i++) MESSAGE_BUFFER[i] = ipv6AddressBuffer[i];
-
-                                    // Write the port
-                                    for (byte i = 0; i < sizeof(ushort); i++) MESSAGE_BUFFER[16 + i] = ((byte)(endpoint.Port >> (i * 8)));
-
-                                    // Write the message type
-                                    MESSAGE_BUFFER[18] = (byte)MessageType.AddressReport;
-
-                                    // Send connect to client
-                                    Transport.Send(new ArraySegment<byte>(MESSAGE_BUFFER, 0, 19), DEFAULT_CHANNEL_BYTE, connectionId);
-                                }
-                                break;
-                            case MessageType.ConnectToServer:
-                                {
-                                    // Check if they are already connected or perhaps are already hosting, if so return
-                                    if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
-                                    {
-                                        return;
-                                    }
-
-                                    if (payload.Count < 1 + 2 + 16)
-                                    {
-                                        // Invalid size
-                                        return;
-                                    }
-                                                                        // 1 for messageType, 2 for port, 16 for address
-                                    int addressOffset = payload.Count - (1 + 2 + 16);
-                                                                      // 1 for messageType, 2 for port
-                                    int portOffset = payload.Count - (1 + 2);
-
-                                    // Copy the address
-                                    for (int i = 0; i < 16; i++) ADDRESS_BYTE_ARRAY[i] = payload.Array[payload.Offset + addressOffset + i];
-
-                                    // Read port
-                                    ushort port = (ushort)(((ushort)payload.Array[payload.Offset + portOffset]) |
-                                                            ((ushort)payload.Array[payload.Offset + portOffset + 1] << 8));
-
-
-                                    // Parse address
-                                    IPAddress address = new IPAddress(ADDRESS_BYTE_ARRAY);
-
-                                    // Create endpoint
-                                    IPEndPoint endpoint = new IPEndPoint(address, port);
-
-                                    if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Connection requested to address " + endpoint);
-
-                                    if (ServerAddressToRoom.ContainsKey(endpoint))
-                                    {
-                                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Connection approved");
-
-                                        // Get the room they want to join
-                                        Room room = ServerAddressToRoom[endpoint];
-
-                                        // Create a client for them
-                                        Client client = new Client()
+                                        // Create the room
+                                        Room room = new Room(client = new Client()
                                         {
                                             ConnectionId = connectionId,
-                                            IsServer = false,
-                                            ConnectTime = DateTime.UtcNow,
-                                            OutgoingBytes = 0
-                                        };
+                                            IsServer = true,
+                                            OutgoingBytes = 0,
+                                            ConnectTime = DateTime.UtcNow
+                                        });
 
-                                        // Handle the connect
-                                        room.HandleClientConnect(client);
-                                    }
-                                }
-                                break;
-                            case MessageType.Data:
-                                {
-                                    foreach (Room room in Rooms)
-                                    {
-                                        if (room.HasPeer(connectionId, out bool isServer))
+                                        // Add the room
+                                        Rooms.Add(room);
+
+                                        // Resolve the endpoint
+                                        IPEndPoint endpoint = Transport.GetEndPoint(connectionId);
+
+                                        if (endpoint != null)
                                         {
-                                            // Found a matching client in room
-                                            if (isServer)
+                                            // Make address IPv6
+                                            endpoint = new IPEndPoint(endpoint.Address.MapToIPv6(), endpoint.Port);
+
+                                            if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Server started from " + endpoint);
+
+                                            ServerAddressToRoom.Add(endpoint, room);
+                                        }
+
+                                        byte[] ipv6AddressBuffer;
+                                        IPAddress ipAddress = endpoint.Address;
+
+                                        if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                                        {
+                                            ipv6AddressBuffer = ipAddress.GetAddressBytes();
+                                        }
+                                        else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                                        {
+                                            byte[] ipv4Address = ipAddress.GetAddressBytes();
+                                            ipv6AddressBuffer = new byte[16] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, ipv4Address[0], ipv4Address[1], ipv4Address[2], ipv4Address[3] };
+                                        }
+                                        else
+                                        {
+                                            // TODO: Throw wrong type
+                                            ipv6AddressBuffer = null;
+                                        }
+
+                                        // TODO: Throw if address is not 16 bytes. It should always be
+                                        // Write the address
+                                        for (int i = 0; i < ipv6AddressBuffer.Length; i++) MESSAGE_BUFFER[i] = ipv6AddressBuffer[i];
+
+                                        // Write the port
+                                        for (byte i = 0; i < sizeof(ushort); i++) MESSAGE_BUFFER[16 + i] = ((byte)(endpoint.Port >> (i * 8)));
+
+                                        // Write the message type
+                                        MESSAGE_BUFFER[18] = (byte)MessageType.AddressReport;
+
+                                        // Send connect to client
+                                        Transport.Send(new ArraySegment<byte>(MESSAGE_BUFFER, 0, 19), DEFAULT_CHANNEL_BYTE, connectionId);
+                                    }
+                                    break;
+                                case MessageType.ConnectToServer:
+                                    {
+                                        // Check if they are already connected or perhaps are already hosting, if so return
+                                        if (HasPeer(connectionId) || ServerAddressToRoom.ContainsKey(Transport.GetEndPoint(connectionId)))
+                                        {
+                                            return;
+                                        }
+
+                                        if (payload.Count < 1 + 2 + 16)
+                                        {
+                                            // Invalid size
+                                            return;
+                                        }
+                                        // 1 for messageType, 2 for port, 16 for address
+                                        int addressOffset = payload.Count - (1 + 2 + 16);
+                                        // 1 for messageType, 2 for port
+                                        int portOffset = payload.Count - (1 + 2);
+
+                                        // Copy the address
+                                        for (int i = 0; i < 16; i++) ADDRESS_BYTE_ARRAY[i] = payload.Array[payload.Offset + addressOffset + i];
+
+                                        // Read port
+                                        ushort port = (ushort)(((ushort)payload.Array[payload.Offset + portOffset]) |
+                                                                ((ushort)payload.Array[payload.Offset + portOffset + 1] << 8));
+
+
+                                        // Parse address
+                                        IPAddress address = new IPAddress(ADDRESS_BYTE_ARRAY);
+
+                                        // Create endpoint
+                                        IPEndPoint endpoint = new IPEndPoint(address, port);
+
+                                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Connection requested to address " + endpoint);
+
+                                        if (ServerAddressToRoom.ContainsKey(endpoint))
+                                        {
+                                            if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Connection approved");
+
+                                            // Get the room they want to join
+                                            Room room = ServerAddressToRoom[endpoint];
+
+                                            // Create a client for them
+                                            Client client = new Client()
                                             {
-                                                // The server is sending data
+                                                ConnectionId = connectionId,
+                                                IsServer = false,
+                                                ConnectTime = DateTime.UtcNow,
+                                                OutgoingBytes = 0
+                                            };
 
-                                                ulong destination = (((ulong)payload.Array[payload.Offset + payload.Count - 9]) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 8] << 8) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 7] << 16) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 6] << 24) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 5] << 32) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 4] << 40) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 3] << 48) |
-                                                                    ((ulong)payload.Array[payload.Offset + payload.Count - 2] << 56));
-
-
-                                                // Safety check. Make sure who they want to send to ACTUALLY belongs to their room
-                                                if (room.HasPeer(destination, out isServer) && !isServer)
-                                                {
-                                                    // We strip the connectionId. Since this is from the server, a source is not needed.
-                                                    payload.Array[payload.Offset + payload.Count - 9] = (byte)MessageType.Data;          // [data, data, data, dest1, dest2, dest3, dest4, dest5, dest6, dest7, dest8, mtype_r, none, none, none] => [{data, data, data, mtype_s}, dest2, dest3, dest4, dest5, dest6, dest7, dest8, mtype_r, none, none, none]
-
-                                                    // Send a shrunk version of the array.
-                                                    room.Send(destination, connectionId, channelId, new ArraySegment<byte>(payload.Array, payload.Offset, payload.Count - 8));
-                                                }
-                                            }
-                                            else
+                                            // Handle the connect
+                                            room.HandleClientConnect(client);
+                                        }
+                                    }
+                                    break;
+                                case MessageType.Data:
+                                    {
+                                        foreach (Room room in Rooms)
+                                        {
+                                            if (room.HasPeer(connectionId, out bool isServer))
                                             {
-                                                // A client is sending data
-
-                                                int writeOffset = 0;
-                                                byte[] buffer = null;
-
-                                                if (payload.Array.Length < payload.Count + sizeof(ulong))
+                                                // Found a matching client in room
+                                                if (isServer)
                                                 {
-                                                    if (Program.MESSAGE_BUFFER.Length < payload.Count + sizeof(ulong))
+                                                    // The server is sending data
+
+                                                    ulong destination = (((ulong)payload.Array[payload.Offset + payload.Count - 9]) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 8] << 8) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 7] << 16) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 6] << 24) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 5] << 32) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 4] << 40) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 3] << 48) |
+                                                                        ((ulong)payload.Array[payload.Offset + payload.Count - 2] << 56));
+
+
+                                                    // Safety check. Make sure who they want to send to ACTUALLY belongs to their room
+                                                    if (room.HasPeer(destination, out isServer) && !isServer)
                                                     {
-                                                        // Message buffer cannot fit the payload either.
+                                                        // We strip the connectionId. Since this is from the server, a source is not needed.
+                                                        payload.Array[payload.Offset + payload.Count - 9] = (byte)MessageType.Data;          // [data, data, data, dest1, dest2, dest3, dest4, dest5, dest6, dest7, dest8, mtype_r, none, none, none] => [{data, data, data, mtype_s}, dest2, dest3, dest4, dest5, dest6, dest7, dest8, mtype_r, none, none, none]
 
-                                                        // Check if we can alloc temporary memory
-                                                        if (Config.AllowTemporaryAlloc && Config.MaxTemporaryAlloc >= payload.Count + sizeof(ulong))
+                                                        // Send a shrunk version of the array.
+                                                        room.Send(destination, connectionId, channelId, new ArraySegment<byte>(payload.Array, payload.Offset, payload.Count - 8));
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    // A client is sending data
+
+                                                    int writeOffset = 0;
+                                                    byte[] buffer = null;
+
+                                                    if (payload.Array.Length < payload.Count + sizeof(ulong))
+                                                    {
+                                                        if (Program.MESSAGE_BUFFER.Length < payload.Count + sizeof(ulong))
                                                         {
-                                                            // We are allowed to alloc this amount!
+                                                            // Message buffer cannot fit the payload either.
 
-                                                            // Alloc a large enough buffer
+                                                            // Check if we can alloc temporary memory
+                                                            if (Config.AllowTemporaryAlloc && Config.MaxTemporaryAlloc >= payload.Count + sizeof(ulong))
+                                                            {
+                                                                // We are allowed to alloc this amount!
+
+                                                                // Alloc a large enough buffer
+                                                                writeOffset = 0;
+                                                                buffer = new byte[payload.Count + sizeof(ulong)];
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            // Message buffer can store it!
                                                             writeOffset = 0;
-                                                            buffer = new byte[payload.Count + sizeof(ulong)];
+                                                            buffer = Program.MESSAGE_BUFFER;
+                                                        }
+
+                                                        if (buffer != null)
+                                                        {
+                                                            // We have something alloced. Lets copy the current payload!
+                                                            Buffer.BlockCopy(payload.Array, payload.Offset, buffer, writeOffset, payload.Count);
                                                         }
                                                     }
                                                     else
                                                     {
-                                                        // Message buffer can store it!
-                                                        writeOffset = 0;
-                                                        buffer = Program.MESSAGE_BUFFER;
+                                                        buffer = payload.Array;
+                                                        writeOffset = payload.Offset;
                                                     }
 
                                                     if (buffer != null)
                                                     {
-                                                        // We have something alloced. Lets copy the current payload!
-                                                        Buffer.BlockCopy(payload.Array, payload.Offset, buffer, writeOffset, payload.Count);
+                                                        // Write the connectionId at the end of the recieved message (because optimization)
+                                                        // We use -1 because we actually want to overwrite the last byte in the message, since that is the old messageType location. It will be moved forward now.
+                                                        for (byte i = 0; i < sizeof(ulong); i++) buffer[writeOffset + payload.Count - 1 + i] = ((byte)(connectionId >> (i * 8)));
+
+                                                        // Write the message type at the new end
+                                                        buffer[writeOffset + payload.Count + 7] = (byte)MessageType.Data;
+
+                                                        // Send the expanded array
+                                                        room.Send(room.ServerConnectionId, connectionId, channelId, new ArraySegment<byte>(payload.Array, payload.Offset, payload.Count + sizeof(ulong)));
+                                                    }
+                                                    else
+                                                    {
+                                                        // Message is too large. Drop it
                                                     }
                                                 }
-                                                else
-                                                {
-                                                    buffer = payload.Array;
-                                                    writeOffset = payload.Offset;
-                                                }
 
-                                                if (buffer != null)
-                                                {
-                                                    // Write the connectionId at the end of the recieved message (because optimization)
-                                                    // We use -1 because we actually want to overwrite the last byte in the message, since that is the old messageType location. It will be moved forward now.
-                                                    for (byte i = 0; i < sizeof(ulong); i++) buffer[writeOffset + payload.Count - 1 + i] = ((byte)(connectionId >> (i * 8)));
-
-                                                    // Write the message type at the new end
-                                                    buffer[writeOffset + payload.Count + 7] = (byte)MessageType.Data;
-
-                                                    // Send the expanded array
-                                                    room.Send(room.ServerConnectionId, connectionId, channelId, new ArraySegment<byte>(payload.Array, payload.Offset, payload.Count + sizeof(ulong)));
-                                                }
-                                                else
-                                                {
-                                                    // Message is too large. Drop it
-                                                }
+                                                // Exit loop when room is found
+                                                break;
                                             }
-
-                                            // Exit loop when room is found
-                                            break;
                                         }
                                     }
-                                }
-                                break;
-                            case MessageType.ClientDisconnect:
-                                {
-                                    ulong clientConnectionId = (((ulong)payload.Array[payload.Offset]) |
-                                                                ((ulong)payload.Array[payload.Offset + 1] << 8) |
-                                                                ((ulong)payload.Array[payload.Offset + 2] << 16) |
-                                                                ((ulong)payload.Array[payload.Offset + 3] << 24) |
-                                                                ((ulong)payload.Array[payload.Offset + 4] << 32) |
-                                                                ((ulong)payload.Array[payload.Offset + 5] << 40) |
-                                                                ((ulong)payload.Array[payload.Offset + 6] << 48) |
-                                                                ((ulong)payload.Array[payload.Offset + 7] << 56));
-
-                                    if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Client disconnect request");
-
-                                    foreach (Room room in Rooms)
+                                    break;
+                                case MessageType.ClientDisconnect:
                                     {
-                                        if (room.ServerConnectionId == connectionId && room.HandleClientDisconnect(clientConnectionId, true))
+                                        ulong clientConnectionId = (((ulong)payload.Array[payload.Offset]) |
+                                                                    ((ulong)payload.Array[payload.Offset + 1] << 8) |
+                                                                    ((ulong)payload.Array[payload.Offset + 2] << 16) |
+                                                                    ((ulong)payload.Array[payload.Offset + 3] << 24) |
+                                                                    ((ulong)payload.Array[payload.Offset + 4] << 32) |
+                                                                    ((ulong)payload.Array[payload.Offset + 5] << 40) |
+                                                                    ((ulong)payload.Array[payload.Offset + 6] << 48) |
+                                                                    ((ulong)payload.Array[payload.Offset + 7] << 56));
+
+                                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Client disconnect request");
+
+                                        foreach (Room room in Rooms)
                                         {
-                                            // Only disconnect one. A peer can only be in 1 room
-                                            break;
+                                            if (room.ServerConnectionId == connectionId && room.HandleClientDisconnect(clientConnectionId, true))
+                                            {
+                                                // Only disconnect one. A peer can only be in 1 room
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                                break;
-                        }
-                    }
-                    break;
-                case NetEventType.Disconnect:
-                    {
-                        if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Peer disconnected");
-
-                        foreach (Room room in Rooms)
-                        {
-                            if (room.HandleClientDisconnect(connectionId))
-                            {
-                                // Each connection can only have 1 room
-                                break;
+                                    break;
                             }
                         }
-                    }
-                    break;
-                case NetEventType.Nothing:
-                    {
-                        // If the underlying transport doesnt report anything. We can just suspend the CPU
-                        Thread.Sleep((int)Config.DeadQueueSleepTime);
-                    }
-                    break;
+                        break;
+                    case NetEventType.Disconnect:
+                        {
+                            if (Config.EnableRuntimeMetaLogging) Console.WriteLine("[INFO] Peer disconnected");
+
+                            foreach (Room room in Rooms)
+                            {
+                                if (room.HandleClientDisconnect(connectionId))
+                                {
+                                    // Each connection can only have 1 room
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                }
             }
+            while (eventType != NetEventType.Nothing);
         }
 
         private static bool HasPeer(ulong connectionId)
