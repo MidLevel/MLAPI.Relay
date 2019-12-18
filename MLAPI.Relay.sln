@@ -6,9 +6,6 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MLAPI.Relay", "MLAPI.Relay\MLAPI.Relay.csproj", "{987C1675-41A5-4587-AAC4-F44C2621E337}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{764D72F2-52B9-4EB8-8FF6-5AB4D65CBE2A}"
-	ProjectSection(SolutionItems) = preProject
-		RelayTransport.cs = RelayTransport.cs
-	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MLAPI.Relay.Transports", "MLAPI.Relay.Transports\MLAPI.Relay.Transports.csproj", "{19F173D4-3166-46CD-9A00-FE0CC7E3AA5A}"
 EndProject

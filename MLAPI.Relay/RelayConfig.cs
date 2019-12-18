@@ -7,11 +7,11 @@ namespace MLAPI.Relay
     public class RelayConfig
     {
         [JsonConverter(typeof(StringEnumConverter))]
-        public TransportType Transport = TransportType.Ruffles;
+        public TransportType Transport = TransportType.UNET;
         public object TransportConfig;
         public ushort BufferSize = 1024 * 8;
         public bool EnableRuntimeMetaLogging = true;
-        public int BandwidthGracePrediodLength = 60;
+        public int BandwidthGracePeriodLength = 60;
         public int GracePeriodBandwidthLimit = 4000;
         public int BandwidthLimit = 2000;
         public bool AllowTemporaryAlloc = true;
