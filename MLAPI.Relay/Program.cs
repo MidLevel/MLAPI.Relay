@@ -66,12 +66,15 @@ namespace MLAPI.Relay
                         UnetTransport.UnetConfig config = (UnetTransport.UnetConfig)Transport.GetConfig();
 
                         config.ConnectionConfig.AddChannel(QosType.ReliableFragmentedSequenced);
+                        config.ConnectionConfig.AddChannel(QosType.ReliableSequenced);
+                        config.ConnectionConfig.AddChannel(QosType.UnreliableSequenced);
+                        config.ConnectionConfig.AddChannel(QosType.Unreliable);
+                        config.ConnectionConfig.AddChannel(QosType.Unreliable);
                         config.ConnectionConfig.AddChannel(QosType.Reliable);
                         config.ConnectionConfig.AddChannel(QosType.UnreliableSequenced);
                         config.ConnectionConfig.AddChannel(QosType.ReliableSequenced);
                         config.ConnectionConfig.AddChannel(QosType.ReliableSequenced);
                         config.ConnectionConfig.AddChannel(QosType.UnreliableSequenced);
-                        config.ConnectionConfig.AddChannel(QosType.Unreliable);
 
                         Config = new RelayConfig()
                         {
